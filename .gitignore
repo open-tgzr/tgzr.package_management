@@ -1,3 +1,9 @@
+# hatch vcs generated:
+_version.py
+
+# uv default venv
+.venv/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
