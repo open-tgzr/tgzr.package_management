@@ -1,6 +1,16 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, get_args, Type, TypeVar, Callable, Any, Iterable
+from typing import (
+    TYPE_CHECKING,
+    get_args,
+    Type,
+    TypeVar,
+    Callable,
+    Any,
+    Iterable,
+    Generic,
+)
 
+import sys
 import importlib.metadata
 import inspect
 import logging
@@ -44,7 +54,10 @@ class Plugin:
         )
 
 
-class PluginManager[PluginType: Plugin]:
+PluginType = TypeVar("PluginType", bound=Plugin)
+
+
+class PluginManager(Generic[PluginType]):
     EP_GROUP = "your_plugin_entry_point_group"
 
     @classmethod
@@ -109,7 +122,10 @@ class PluginManager[PluginType: Plugin]:
         )
 
     def _load_plugins(self):
-        all_entry_points = importlib.metadata.entry_points(group=self.EP_GROUP)
+        if sys.version_info[:2] == (3, 9):
+            all_entry_points = importlib.metadata.entry_points().get(self.EP_GROUP, [])
+        else:
+            all_entry_points = importlib.metadata.entry_points(group=self.EP_GROUP)
 
         self._broken.clear()
         self._loaded.clear()
