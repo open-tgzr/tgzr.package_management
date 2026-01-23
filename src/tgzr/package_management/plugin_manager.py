@@ -11,9 +11,11 @@ from typing import (
 )
 
 import sys
-import importlib.metadata
+import importlib_metadata
 import inspect
 import logging
+
+import rich
 
 T = TypeVar("T", bound="Plugin")
 
@@ -41,7 +43,7 @@ class Plugin:
     def plugin_id(cls) -> str:
         return f"{cls.plugin_type_name()}@{cls.plugin_name()}"
 
-    def __init__(self, ep: importlib.metadata.EntryPoint):
+    def __init__(self, ep: importlib_metadata.EntryPoint):
         super().__init__()
         self._entry_point = ep
 
@@ -65,12 +67,12 @@ class PluginManager(Generic[PluginType]):
         return get_args(cls.__orig_bases__[0])[0]  # type: ignore __orig_bases__ trust me bro.
 
     def __init__(self):
-        self._broken: list[tuple[importlib.metadata.EntryPoint, Exception]] = []
+        self._broken: list[tuple[importlib_metadata.EntryPoint, Exception]] = []
         self._loaded: list[PluginType] = []
         self._needs_loading: bool = True
 
     def _instantiate_plugin_type(
-        self, PluginType: Type[PluginType], entry_point: importlib.metadata.EntryPoint
+        self, PluginType: Type[PluginType], entry_point: importlib_metadata.EntryPoint
     ) -> PluginType:
         """
         Subclasses will want to override this if the managed plugin type needs
@@ -86,7 +88,7 @@ class PluginManager(Generic[PluginType]):
             | Callable[[], PluginType | list[PluginType]]
             | Iterable[PluginType]
         ),
-        entry_point: importlib.metadata.EntryPoint,
+        entry_point: importlib_metadata.EntryPoint,
     ) -> list[PluginType]:
         # print("Resolving shell app plugins:", loaded)
         ManagedPluginType = self.__class__.managed_plugin_type()
@@ -104,7 +106,7 @@ class PluginManager(Generic[PluginType]):
             try:
                 plugin_or_list_of_plugins = loaded()  # type: ignore
             except Exception as err:
-                ValueError(
+                raise ValueError(
                     f"Error while executing callable entry point value (ep={entry_point}): {err}"
                 )
             return self._resolve_plugins(
@@ -122,10 +124,7 @@ class PluginManager(Generic[PluginType]):
         )
 
     def _load_plugins(self):
-        if sys.version_info[:2] == (3, 9):
-            all_entry_points = importlib.metadata.entry_points().get(self.EP_GROUP, [])
-        else:
-            all_entry_points = importlib.metadata.entry_points(group=self.EP_GROUP)
+        all_entry_points = importlib_metadata.entry_points(group=self.EP_GROUP)
 
         self._broken.clear()
         self._loaded.clear()
@@ -135,11 +134,13 @@ class PluginManager(Generic[PluginType]):
             try:
                 loaded = ep.load()
             except Exception as err:
+                raise  # TMP DEE
                 self._broken.append((ep, err))
             else:
                 try:
                     plugins = self._resolve_plugins(loaded, ep)
                 except Exception as err:
+                    raise  # TMP DEE
                     self._broken.append((ep, err))
                 else:
                     for plugin in plugins:
@@ -149,7 +150,7 @@ class PluginManager(Generic[PluginType]):
 
     def get_broken_plugins(
         self, force_reload: bool = False
-    ) -> list[tuple[importlib.metadata.EntryPoint, Exception]]:
+    ) -> list[tuple[importlib_metadata.EntryPoint, Exception]]:
         if force_reload or self._needs_loading:
             self._load_plugins()
         return self._broken

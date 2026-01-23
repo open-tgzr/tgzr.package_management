@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from pathlib import Path
-import importlib.metadata
+import importlib_metadata
 import platform
 import json
 import os
@@ -156,11 +158,11 @@ class Venv:
     def get_cmd_names(self) -> list[str]:
         raise NotImplementedError()
 
-    def get_package(self, package_name: str) -> importlib.metadata.Distribution | None:
+    def get_package(self, package_name: str) -> importlib_metadata.Distribution | None:
         if self.site_packages_path is None:
             return None
         distributions = list(
-            importlib.metadata.distributions(
+            importlib_metadata.distributions(
                 name=package_name, path=[str(self.site_packages_path)]
             )
         )
@@ -173,10 +175,10 @@ class Venv:
 
     def get_packages(
         self, name_filters: list[str] | None = None
-    ) -> list[importlib.metadata.Distribution]:
+    ) -> list[importlib_metadata.Distribution]:
         if self.site_packages_path is None:
             return []
-        distributions = importlib.metadata.distributions(
+        distributions = importlib_metadata.distributions(
             path=[str(self.site_packages_path)]
         )
         ret = []
@@ -215,10 +217,10 @@ class Venv:
 
     def get_plugins(
         self, group_filter: str | None
-    ) -> list[tuple[importlib.metadata.EntryPoint, importlib.metadata.Distribution]]:
+    ) -> list[tuple[importlib_metadata.EntryPoint, importlib_metadata.Distribution]]:
         if self.site_packages_path is None:
             return []
-        distributions = importlib.metadata.distributions(
+        distributions = importlib_metadata.distributions(
             path=[str(self.site_packages_path)]
         )
         plugins = []
@@ -230,7 +232,7 @@ class Venv:
 
     def get_plugins_slow(
         self, group_filter: str | None
-    ) -> list[importlib.metadata.EntryPoint]:
+    ) -> list[importlib_metadata.EntryPoint]:
         cmd_args = ["studio", "plugins-here", "--format", "json"]
         if group_filter:
             cmd_args.extend(["--group-filter", group_filter])
@@ -243,7 +245,7 @@ class Venv:
         ret = []
         for entry in data:
             # print(entry)
-            ep = importlib.metadata.EntryPoint(
+            ep = importlib_metadata.EntryPoint(
                 entry["name"], entry["value"], entry["group"]
             )
             ret.append(ep)
