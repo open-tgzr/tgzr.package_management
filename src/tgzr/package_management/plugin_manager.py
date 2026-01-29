@@ -10,12 +10,10 @@ from typing import (
     Generic,
 )
 
-import sys
 import importlib_metadata
 import inspect
 import logging
 
-import rich
 
 T = TypeVar("T", bound="Plugin")
 
@@ -59,6 +57,23 @@ class Plugin:
 PluginType = TypeVar("PluginType", bound=Plugin)
 
 
+class PluginManagerRegistry:
+    """
+    A Registry containing all the PluginManager instances.
+    This is used for documenting/inspecting plugins usage.
+    """
+
+    _PLUGIN_MANAGERS: set[PluginManager] = set()
+
+    @classmethod
+    def register(cls, plugin_manager: PluginManager):
+        cls._PLUGIN_MANAGERS.add(plugin_manager)
+
+    @classmethod
+    def get_plugin_managers(cls) -> set[PluginManager]:
+        return cls._PLUGIN_MANAGERS.copy()
+
+
 class PluginManager(Generic[PluginType]):
     EP_GROUP = "your_plugin_entry_point_group"
 
@@ -67,6 +82,8 @@ class PluginManager(Generic[PluginType]):
         return get_args(cls.__orig_bases__[0])[0]  # type: ignore __orig_bases__ trust me bro.
 
     def __init__(self):
+        PluginManagerRegistry.register(self)
+
         self._broken: list[tuple[importlib_metadata.EntryPoint, Exception]] = []
         self._loaded: list[PluginType] = []
         self._needs_loading: bool = True
