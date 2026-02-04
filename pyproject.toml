@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"] 
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -10,9 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = "GPL-3.0-or-later"
 keywords = []
-authors = [
-  { name = "Dee", email = "dee.sometech@gmail.com" },
-]
+authors = [{ name = "Dee", email = "dee.sometech@gmail.com" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
@@ -26,8 +24,11 @@ classifiers = [
 ]
 
 dependencies = [
+  "packaging",
   "uv",
   "hatch",
+  'msgspec',
+  "toml",
   "importlib-metadata", # needed to support modern Distribution api with py3.9
 ]
 
@@ -55,9 +56,7 @@ artifacts = ['_version.py']
 packages = ["src/tgzr"]
 
 [tool.hatch.envs.types]
-extra-dependencies = [
-  "mypy>=1.0.0",
-]
+extra-dependencies = ["mypy>=1.0.0"]
 
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/tgzr/package_management tests}"
@@ -66,19 +65,14 @@ check = "mypy --install-types --non-interactive {args:src/tgzr/package_managemen
 source_pkgs = ["tgzr.package_management", "tests"]
 branch = true
 parallel = true
-omit = [
-  "src/tgzr/package_management/_version.py",
-]
+omit = ["src/tgzr/package_management/_version.py"]
 
 [tool.coverage.paths]
-tgzr.package_management = ["src/tgzr/package_management", "*/tgzr.package_management/src/tgzr/package_management"]
+tgzr.package_management = [
+  "src/tgzr/package_management",
+  "*/tgzr.package_management/src/tgzr/package_management",
+]
 tests = ["tests", "*/tgzr/package_management/tests"]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
-
-
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]

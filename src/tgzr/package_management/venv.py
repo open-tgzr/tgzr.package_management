@@ -194,26 +194,26 @@ class Venv:
             ret.append(dist)
         return ret
 
-    def get_packages_slow(self) -> list[tuple[str, str, str]]:
-        stdout, stderr = self.get_cmd_output(
-            cmd_name="uv",
-            # cmd_args=["pip", "tree", "-d", "0"],
-            cmd_args=["pip", "list", "--format", "json"],
-        )
-        try:
-            data = json.loads(stdout)
-        except Exception as err:
-            raise ValueError(f"Error parsing pip list output: {err}")
-        ret = []
-        for entry in data:
-            ret.append(
-                (
-                    entry["name"],
-                    entry["version"],
-                    entry.get("editable_project_location"),
-                )
-            )
-        return ret
+    # def get_packages_slow(self) -> list[tuple[str, str, str]]:
+    #     stdout, stderr = self.get_cmd_output(
+    #         cmd_name="uv",
+    #         # cmd_args=["pip", "tree", "-d", "0"],
+    #         cmd_args=["pip", "list", "--format", "json"],
+    #     )
+    #     try:
+    #         data = json.loads(stdout)
+    #     except Exception as err:
+    #         raise ValueError(f"Error parsing pip list output: {err}")
+    #     ret = []
+    #     for entry in data:
+    #         ret.append(
+    #             (
+    #                 entry["name"],
+    #                 entry["version"],
+    #                 entry.get("editable_project_location"),
+    #             )
+    #         )
+    #     return ret
 
     def get_plugins(
         self, group_filter: str | None
@@ -230,23 +230,70 @@ class Venv:
                     plugins.append([ep, dist])
         return plugins
 
-    def get_plugins_slow(
-        self, group_filter: str | None
-    ) -> list[importlib_metadata.EntryPoint]:
-        cmd_args = ["studio", "plugins-here", "--format", "json"]
-        if group_filter:
-            cmd_args.extend(["--group-filter", group_filter])
-        stdout, stderr = self.get_cmd_output("tgzr", cmd_args)
-        # print("???", [stdout, stderr])
-        stdout = stdout.split(">>> JSON:", 1)[-1]
+    # def get_plugins_slow(
+    #     self, group_filter: str | None
+    # ) -> list[importlib_metadata.EntryPoint]:
+    #     cmd_args = ["studio", "plugins-here", "--format", "json"]
+    #     if group_filter:
+    #         cmd_args.extend(["--group-filter", group_filter])
+    #     stdout, stderr = self.get_cmd_output("tgzr", cmd_args)
+    #     # print("???", [stdout, stderr])
+    #     stdout = stdout.split(">>> JSON:", 1)[-1]
 
-        data = json.loads(stdout)
-        # print("-->", data)
-        ret = []
-        for entry in data:
-            # print(entry)
-            ep = importlib_metadata.EntryPoint(
-                entry["name"], entry["value"], entry["group"]
-            )
-            ret.append(ep)
-        return ret
+    #     data = json.loads(stdout)
+    #     # print("-->", data)
+    #     ret = []
+    #     for entry in data:
+    #         # print(entry)
+    #         ep = importlib_metadata.EntryPoint(
+    #             entry["name"], entry["value"], entry["group"]
+    #         )
+    #         ret.append(ep)
+    #     return ret
+
+    def hatch_version_bump(self, package_path: Path, bump_type: str):
+        hatch_exe = self.get_exe("hatch")
+        subprocess.call(
+            [hatch_exe, "version", bump_type],
+            cwd=package_path,
+        )
+
+    def hatch_build(
+        self,
+        package_path: str | Path,
+        dist_path: str | Path,
+        allow_custom_classifiers=True,
+    ):
+        env = None
+        if allow_custom_classifiers:
+            env = os.environ.copy()
+            # This is needed to build a package with custom classifiers:
+            env["HATCH_METADATA_CLASSIFIERS_NO_VERIFY"] = "1"
+
+        hatch_exe = self.get_exe("hatch")
+        subprocess.call(
+            [hatch_exe, "build", "-t", "sdist", dist_path],
+            cwd=package_path,
+            env=env,
+        )
+
+    def hatch_publish(
+        self, package_path: str | Path, dist_path: Path, repo_url: str, **options: str
+    ):
+        hatch_options = sum([["-o", f"{k}={v}"] for k, v in options.items()], [])
+        hatch_exe = self.get_exe("hatch")
+        cmd = [
+            hatch_exe,
+            "publish",
+            # "--publisher",
+            # "tgzr-pipeline-asset",
+            "--repo",
+            repo_url,
+            *hatch_options,
+            *dist_path.iterdir(),
+        ]
+        # print("--->", cmd)
+        subprocess.call(
+            cmd,
+            cwd=package_path,
+        )

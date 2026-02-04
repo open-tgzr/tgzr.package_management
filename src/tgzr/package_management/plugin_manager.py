@@ -124,7 +124,7 @@ class PluginManager(Generic[PluginType]):
                 plugin_or_list_of_plugins = loaded()  # type: ignore
             except Exception as err:
                 raise ValueError(
-                    f"Error while executing callable entry point value (ep={entry_point}): {err}"
+                    f"Error while executing callable entry point value (ep={entry_point}): {err} ({loaded=}, {ManagedPluginType=})"
                 )
             return self._resolve_plugins(
                 loaded=plugin_or_list_of_plugins, entry_point=entry_point

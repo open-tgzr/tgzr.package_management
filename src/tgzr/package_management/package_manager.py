@@ -1,14 +1,32 @@
 from __future__ import annotations
+from typing import Literal
 
 import os
 import platform
 from pathlib import Path
 
 from .venv import Venv
+from .workspace import Workspace
 
 
 class PackageManager:
     def __init__(self, root: Path) -> None:
+        """
+        The venvs and workspace created by this manager will
+        be located in their group folder:
+            root/
+                group1/
+                    venv1
+                    venv2
+                    workspace1
+                group2/
+                    venv3
+                    venv4
+                    workspace2
+                group3/
+                    workspace3
+        """
+
         self._root = root
 
     @property
@@ -73,3 +91,24 @@ class PackageManager:
         venv.create(prompt, clear_existing=exist_ok)
         venv.install_uv()
         return venv
+
+    def get_workspace_path(self, workspace_name: str, group: str) -> Path:
+        return self.root / group / workspace_name
+
+    def get_workspace(self, workspace_name: str, group: str) -> Workspace:
+        return Workspace(self.get_workspace_path(workspace_name, group))
+
+    def create_workspace(
+        self,
+        workspace_name: str,
+        group: str,
+        description: str | None = None,
+        python_version: str | None = None,
+        vcs: Literal["git", "none"] | None = None,
+        exist_ok: bool = False,
+    ):
+        workspace = self.get_workspace(workspace_name, group)
+        if workspace.exists() and not exist_ok:
+            raise ValueError(f"The workspace {workspace.path} already exists!")
+
+        workspace.create(description, python_version, vcs)
