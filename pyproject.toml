@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "tgzr.package_management"
 dynamic = ["version"]
-description = 'tgzr package_management engine'
+description = 'tgzr package_management'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "GPL-3.0-or-later"
@@ -30,6 +30,7 @@ dependencies = [
   'msgspec',
   "toml",
   "importlib-metadata", # needed to support modern Distribution api with py3.9
+  'pydantic',
 ]
 
 

@@ -7,7 +7,66 @@ import json
 import os
 import subprocess
 
+import pydantic
+
 import uv
+
+
+class InstallOptions(pydantic.BaseModel):
+    python_version: str | None = pydantic.Field(
+        default=None,
+        description="The python to use (for operaty where you can force it).",
+    )
+    update: bool = pydantic.Field(
+        default=True, description="The default python to use when creating venvs"
+    )
+    default_index: str | None = pydantic.Field(
+        default=None, description="The default index to use when installing packages"
+    )
+    find_links: str | None = pydantic.Field(
+        default=None,
+        description="The default --find-links option when installing packages",
+    )
+    allow_prerelease: bool = pydantic.Field(
+        default=False,
+        description="The default --allow-prerelease option when installing packages",
+    )
+    no_cache: bool = pydantic.Field(
+        default=False,
+        description="The default --no-cache option when installing packages",
+    )
+
+    def to_pip_options(self) -> list[str]:
+        # not sure it's actually the same as uv but I
+        # dont think we'll use it anyway...
+        #
+        # Actually, '--no-cache' from uv is more '--no-cache-dir' for pip
+        # but not exactly the same thing.
+        # Should we support it?
+        return self.to_uv_options()
+
+    def to_uv_options(self) -> list[str]:
+        options = []
+
+        if self.update:
+            options.append("-U")
+
+        if self.default_index is not None:
+            # options.append(f"--default-index {self.default_index}")
+            options.append(
+                f"--default-index {self.default_index} --index https://pypi.org/simple --index-strategy unsafe-best-match"
+            )
+
+        if self.find_links:
+            options.append(f"--find-links {self.find_links}")
+
+        if self.allow_prerelease:
+            options.append("--prerelease=allow")
+
+        if self.no_cache:
+            options.append("--no-cache")
+
+        return options
 
 
 class Venv:
@@ -48,20 +107,31 @@ class Venv:
             and self.site_packages_path is not None
         )
 
-    def create(self, prompt: str | None = None, clear_existing: bool = False):
+    def create(
+        self,
+        prompt: str | None = None,
+        clear_existing: bool = False,
+        python_version: str | None = None,
+    ):
         uv_exe = uv.find_uv_bin()
 
         prompt_option = ""
         if prompt:
-            prompt_option = f"--prompt {prompt}"
+            prompt_option = f'--prompt "{prompt}"'
 
         clear_option = ""
         if clear_existing:
             clear_option = f"--clear"
 
-        cmd = f"{uv_exe} venv --seed {clear_option} {prompt_option} {self.path}"
+        python_option = ""
+        if python_version is not None:
+            python_option = f"--python {python_version}"
+
+        cmd = f"{uv_exe} venv --seed {clear_option} {prompt_option} {python_option} {self.path}"
         print(f"Creating venv {self.path}: {cmd}")
-        os.system(cmd)
+        ret = os.system(cmd)
+        if ret:
+            raise Exception(f"Error creating venv (cmd was: {cmd}).")
 
     def get_exe(self, name: str):
         exe = self._bin_path / name
@@ -80,12 +150,13 @@ class Venv:
 
     def install_packages(
         self,
-        requirements,
-        update: bool = True,
+        requirements: str,
+        install_options: InstallOptions | None = None,
+        # update: bool = True,
         use_uv: bool = True,
-        index: str | None = None,
-        find_links: str | None = None,
-        allow_prerelease: bool = False,
+        # default_index: str | None = None,
+        # find_links: str | None = None,
+        # allow_prerelease: bool = False,
     ) -> bool:
         """
         Returns True if the package has been successfully installed.
@@ -101,28 +172,36 @@ class Venv:
         else:
             exe = f'{self.get_exe("python")} -m pip'
 
-        index_flags = ""
-        if index is not None:
-            if "://" in index:
-                index_flags = f"--default-index {index}"
+        options = []
+        if install_options is not None:
+            if use_uv:
+                options = install_options.to_uv_options()
             else:
-                index_flags = f"--find-links {index}"
+                options = install_options.to_pip_options()
 
-        find_links_options = ""
-        if find_links:
-            find_links_options = f"--find-links {find_links}"
+        # index_options = ""
+        # if default_index is not None:
+        #     index_options = f"--default-index {default_index}"
 
-        prerelease_options = ""
-        if allow_prerelease:
-            prerelease_options = "--prerelease=allow"
+        # find_links_options = ""
+        # if find_links:
+        #     find_links_options = f"--find-links {find_links}"
 
-        update_flag = ""
-        if update:
-            update_flag = "-U"
+        # prerelease_options = ""
+        # if allow_prerelease:
+        #     prerelease_options = "--prerelease=allow"
 
-        cmd = f"{exe} install {index_flags} {update_flag} {find_links_options} {prerelease_options} {requirements}"
+        # update_flag = ""
+        # if update:
+        #     update_flag = "-U"
+
+        cmd = f"{exe} install {' '.join(options)} {requirements}"
         print(f"Installing package(s) {requirements}: {cmd}")
         ret = os.system(cmd)
+        if ret:
+            raise Exception(
+                f"Error installing packages {requirements!r} in venv (cmd was: {cmd})"
+            )
         return not ret
 
     def execute_cmd(self, cmd: str) -> bool:
@@ -158,19 +237,31 @@ class Venv:
     def get_cmd_names(self) -> list[str]:
         raise NotImplementedError()
 
-    def get_package(self, package_name: str) -> importlib_metadata.Distribution | None:
+    def get_package(
+        self, package_name: str, raises: bool = True
+    ) -> importlib_metadata.Distribution | None:
         if self.site_packages_path is None:
             return None
+
         distributions = list(
             importlib_metadata.distributions(
                 name=package_name, path=[str(self.site_packages_path)]
             )
         )
+        if not distributions:
+            if raises:
+                raise ValueError(f"No {package_name} distribution found!")
+            return None
+
         distribution = distributions.pop(0)
+
         if distributions:
-            raise ValueError(
-                f"More than one distribution found for package {package_name} !!!"
-            )
+            if raises:
+                raise ValueError(
+                    f"More than one distribution found for package {package_name} !!!"
+                )
+            return None
+
         return distribution
 
     def get_packages(
@@ -194,27 +285,6 @@ class Venv:
             ret.append(dist)
         return ret
 
-    # def get_packages_slow(self) -> list[tuple[str, str, str]]:
-    #     stdout, stderr = self.get_cmd_output(
-    #         cmd_name="uv",
-    #         # cmd_args=["pip", "tree", "-d", "0"],
-    #         cmd_args=["pip", "list", "--format", "json"],
-    #     )
-    #     try:
-    #         data = json.loads(stdout)
-    #     except Exception as err:
-    #         raise ValueError(f"Error parsing pip list output: {err}")
-    #     ret = []
-    #     for entry in data:
-    #         ret.append(
-    #             (
-    #                 entry["name"],
-    #                 entry["version"],
-    #                 entry.get("editable_project_location"),
-    #             )
-    #         )
-    #     return ret
-
     def get_plugins(
         self, group_filter: str | None
     ) -> list[tuple[importlib_metadata.EntryPoint, importlib_metadata.Distribution]]:
@@ -229,27 +299,6 @@ class Venv:
                 if group_filter is None or group_filter in ep.group:
                     plugins.append([ep, dist])
         return plugins
-
-    # def get_plugins_slow(
-    #     self, group_filter: str | None
-    # ) -> list[importlib_metadata.EntryPoint]:
-    #     cmd_args = ["studio", "plugins-here", "--format", "json"]
-    #     if group_filter:
-    #         cmd_args.extend(["--group-filter", group_filter])
-    #     stdout, stderr = self.get_cmd_output("tgzr", cmd_args)
-    #     # print("???", [stdout, stderr])
-    #     stdout = stdout.split(">>> JSON:", 1)[-1]
-
-    #     data = json.loads(stdout)
-    #     # print("-->", data)
-    #     ret = []
-    #     for entry in data:
-    #         # print(entry)
-    #         ep = importlib_metadata.EntryPoint(
-    #             entry["name"], entry["value"], entry["group"]
-    #         )
-    #         ret.append(ep)
-    #     return ret
 
     def hatch_version_bump(self, package_path: Path, bump_type: str):
         hatch_exe = self.get_exe("hatch")

@@ -5,7 +5,7 @@ import os
 import platform
 from pathlib import Path
 
-from .venv import Venv
+from .venv import Venv, InstallOptions
 from .workspace import Workspace
 
 
@@ -83,12 +83,13 @@ class PackageManager:
         group: str,
         exist_ok: bool = False,
         prompt: str | None = None,
+        python_version: str | None = None,
     ) -> Venv:
         venv = self.get_venv(venv_name, group)
         if venv.exists() and not exist_ok:
             raise ValueError(f"Virtual Env {venv.path} already exists!")
 
-        venv.create(prompt, clear_existing=exist_ok)
+        venv.create(prompt, clear_existing=exist_ok, python_version=python_version)
         venv.install_uv()
         return venv
 

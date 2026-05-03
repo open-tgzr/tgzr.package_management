@@ -180,7 +180,7 @@ class Workspace:
         if self.pyproject.project is None:
             self.pyproject.project = Project()
 
-        if group is None:
+        if not group:
             deps = self.pyproject.project.dependencies
         else:
             try:

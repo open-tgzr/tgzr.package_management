@@ -132,7 +132,9 @@ class PluginManager(Generic[PluginType]):
 
         elif isinstance(loaded, (tuple, list, set)):
             # print("  is iterable")
-            return [plugin for plugin in loaded]
+            return sum(
+                [self._resolve_plugins(plugin, entry_point) for plugin in loaded], []
+            )
 
         # print("  is unsupported")
         raise ValueError(
@@ -147,17 +149,17 @@ class PluginManager(Generic[PluginType]):
         self._loaded.clear()
 
         for ep in all_entry_points:
-            logger.info(f"Loading {self.EP_GROUP} plugin:", ep.name)
+            logger.info(f"Loading {self.EP_GROUP} plugin: {ep.name}")
             try:
                 loaded = ep.load()
             except Exception as err:
-                raise  # TMP DEE
                 self._broken.append((ep, err))
+                logger.exception("Error loading entry point")
+                # logger.error(f"Error loading entry point {ep} :{err}")
             else:
                 try:
                     plugins = self._resolve_plugins(loaded, ep)
                 except Exception as err:
-                    raise  # TMP DEE
                     self._broken.append((ep, err))
                 else:
                     for plugin in plugins:
@@ -177,12 +179,26 @@ class PluginManager(Generic[PluginType]):
             self._load_plugins()
         return self._loaded
 
+    def get_single_plugin(self) -> PluginType:
+        plugins = self.get_plugins()
+        if not plugins:
+            raise RuntimeError(
+                f"No {self.managed_plugin_type().plugin_type_name()} plugin found! "
+                f"(got errors: {self._broken})"
+            )
+        if len(plugins) > 1:
+            raise RuntimeError(
+                f"More than one {self.managed_plugin_type().plugin_type_name()} plugin found! "
+                f"(plugins:{[p.plugin_name() for p in self.get_plugins()]}, errors: {self._broken})"
+            )
+        return plugins[0]
+
     def get_plugin(self, plugin_name: str) -> PluginType:
         for plugin in self.get_plugins():
             if plugin.plugin_name() == plugin_name:
                 return plugin
         raise ValueError(
-            f"Not {self.managed_plugin_type().plugin_type_name()} plugin found with name {plugin_name!r}. "
+            f"No {self.managed_plugin_type().plugin_type_name()} plugin found with name {plugin_name!r}. "
             f"(got plugins:{[p.plugin_name() for p in self.get_plugins()]} and errors: {self._broken})"
         )
 
@@ -195,10 +211,21 @@ class PluginManager(Generic[PluginType]):
                 found.append(plugin)
         if not found:
             raise ValueError(
-                f"No plugin with type {PluginType} found!."
+                f"No plugin with type {PluginType.__name__} found!."
                 f"(got plugins:{[p.plugin_name() for p in self.get_plugins()]} and errors: {self._broken})"
             )
         return found
+
+    def find_single_plugin(
+        self, PluginType: Type[T], raise_not_found: bool = True
+    ) -> T:
+        found = self.find_plugins(PluginType, raise_not_found)
+        if len(found) > 1:
+            raise RuntimeError(
+                f"More than one {PluginType.plugin_type_name()} plugin found! "
+                f"(plugins:{[p.plugin_name() for p in self.get_plugins()]}, errors: {self._broken})"
+            )
+        return found[0]
 
 
 def usage_example():
