@@ -42,7 +42,7 @@ class PackageManager:
     def _create_bat_shortcut(self, exe_path: Path | str, shortcut_path: Path | str):
         exe_path = Path(exe_path)
         if not exe_path.is_absolute() and not str(exe_path).startswith("./"):
-            exe_path = f".\\{exe_path}"
+            exe_path = Path(f".\\{exe_path}")
 
         shortcut_path = Path(shortcut_path)
         if shortcut_path.suffix != ".bat":
@@ -52,7 +52,8 @@ class PackageManager:
             "@echo off",
             f"REM Shortcut to {exe_path}",
             "",
-            f"{exe_path} %*",
+            f"cd {exe_path.parent}",
+            f"{exe_path.name} %*",
         ]
         with open(shortcut_path, "w") as fp:
             fp.write("\n".join(content))
