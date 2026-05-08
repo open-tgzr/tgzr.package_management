@@ -53,7 +53,7 @@ class PackageManager:
             f"REM Shortcut to {exe_path}",
             "",
             f"cd {exe_path.parent}",
-            f"{exe_path.name} %*",
+            f".\\{exe_path.name} %*",
         ]
         with open(shortcut_path, "w") as fp:
             fp.write("\n".join(content))
