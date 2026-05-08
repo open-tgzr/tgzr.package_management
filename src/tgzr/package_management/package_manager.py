@@ -52,7 +52,7 @@ class PackageManager:
             "@echo off",
             f"REM Shortcut to {exe_path}",
             "",
-            f"cd %~dp0\{exe_path.parent}",
+            f"cd %~dp0\\{exe_path.parent}",
             f".\\{exe_path.name} %*",
         ]
         with open(shortcut_path, "w") as fp:
